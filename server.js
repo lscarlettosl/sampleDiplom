@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const cors = require('cors');
+const fs = require('fs');
 const cookieParser = require('cookie-parser');
 const app = express();
 
@@ -10,6 +11,24 @@ app.use(cookieParser());
 app.use(express.static('public')); // отдача файлов
 app.use('/uploads', express.static('uploads')); // доступ к загруженным моделям
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ==== Создание нужных директорий ====
+const baseUploadDir = path.join(__dirname, 'uploads');
+const folders = ['models', 'backgrounds'];
+
+if (!fs.existsSync(baseUploadDir)) {
+  fs.mkdirSync(baseUploadDir);
+  console.log('Создана папка: uploads');
+}
+
+folders.forEach(folder => {
+  const fullPath = path.join(baseUploadDir, folder);
+  if (!fs.existsSync(fullPath)) {
+    fs.mkdirSync(fullPath, { recursive: true });
+    console.log(`Создана папка: uploads/${folder}`);
+  }
+});
+
 
 // === Загрузка файлов ===
 const storage = multer.diskStorage({
