@@ -41,11 +41,25 @@ document.getElementById("backgroundColorPicker").addEventListener("input", funct
   setCookie("backgroundImageActive", "false"); // отключить картинку
 });
 
-document.getElementById("hdrInput").addEventListener("change", function (event) {
+document.getElementById('bgUploadInput').addEventListener('change', function (event) {
   const file = event.target.files[0];
-  const url = URL.createObjectURL(file);
-  const isHDR = file.name.endsWith(".hdr");
-  const isEXR = file.name.endsWith(".exr");
+  const formData = new FormData();
+  formData.append('background', file);
+
+  fetch('http://localhost:3000/upload-bg', {
+    method: 'POST',
+    body: formData,
+    credentials: 'include'
+  })
+    .then(res => res.json())
+    .then(data => {
+      loadBackgroundFromURL(data.path);
+    });
+});
+
+function loadBackgroundFromURL(url) {
+  const isHDR = url.endsWith(".hdr");
+  const isEXR = url.endsWith(".exr");
 
   const loader = isHDR
     ? new THREE.RGBELoader()
@@ -53,15 +67,11 @@ document.getElementById("hdrInput").addEventListener("change", function (event) 
     ? new THREE.EXRLoader()
     : null;
 
-  if (!loader) {
-    alert("Поддерживаются только .hdr и .exr файлы.");
-    return;
-  }
+  if (!loader) return;
 
   loader.load(url, function (texture) {
     texture.mapping = THREE.EquirectangularReflectionMapping;
 
-    // Освещение и фон
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     const envMap = pmremGenerator.fromEquirectangular(texture).texture;
 
@@ -70,11 +80,8 @@ document.getElementById("hdrInput").addEventListener("change", function (event) 
 
     texture.dispose();
     pmremGenerator.dispose();
-
-    setCookie("backgroundType", isHDR ? "hdr" : "exr");
-    // Можно сохранить только тип, а файл не сохраняется — он локальный
   });
-});
+}
 
 
 function onCanvasClick() {
@@ -142,7 +149,6 @@ function saveSettingsToCookies() {
     lightIntensity: document.getElementById("lightIntensity").value,
     lightColor: document.getElementById("favcolor").value,
     cameraSpeed: cameraSpeed,
-    lastModelName: document.getElementById("modelInput").files[0]?.name || ''
   };
 
   for (const [key, value] of Object.entries(settings)) {
@@ -160,7 +166,14 @@ function loadSettingsFromCookies() {
   const speed = getCookie("cameraSpeed");
   const bgColor = getCookie("backgroundColor");
   const bgImgActive = getCookie("backgroundImageActive");
-
+  const modelPath = getCookie("lastModelPath");
+  const bgPath = getCookie("lastBackgroundPath");
+  if (modelPath) {
+    loadModelFromURL(modelPath);
+  }
+  if (bgPath && (bgPath.endsWith(".hdr") || bgPath.endsWith(".exr"))) {
+    loadBackgroundFromURL(bgPath);
+  }
   if (scale) {
     document.getElementById("scale").value = scale;
     updateScale();
@@ -264,11 +277,24 @@ function moveCamera() {
 }
 
 // ======== MODEL LOAD ==========
-document.getElementById('modelInput').addEventListener('change', function (event) {
+document.getElementById('modelUploadInput').addEventListener('change', function (event) {
   const file = event.target.files[0];
-  const url = URL.createObjectURL(file);
-  const ext = file.name.split('.').pop().toLowerCase();
+  const formData = new FormData();
+  formData.append('model', file);
 
+  fetch('http://localhost:3000/upload-model', {
+    method: 'POST',
+    body: formData,
+    credentials: 'include'
+  })
+    .then(res => res.json())
+    .then(data => {
+      loadModelFromURL(data.path);
+    });
+});
+
+function loadModelFromURL(url) {
+  const ext = url.split('.').pop().toLowerCase();
   if (model) scene.remove(model);
 
   let loader;
@@ -279,7 +305,6 @@ document.getElementById('modelInput').addEventListener('change', function (event
       scene.add(model);
       updateScale();
       updateRotation();
-      saveSettingsToCookies();
     });
   } else if (ext === 'obj') {
     loader = new THREE.OBJLoader();
@@ -288,7 +313,6 @@ document.getElementById('modelInput').addEventListener('change', function (event
       scene.add(model);
       updateScale();
       updateRotation();
-      saveSettingsToCookies();
     });
   } else if (ext === 'fbx') {
     loader = new THREE.FBXLoader();
@@ -297,12 +321,11 @@ document.getElementById('modelInput').addEventListener('change', function (event
       scene.add(model);
       updateScale();
       updateRotation();
-      saveSettingsToCookies();
     });
   } else {
-    alert("Неподдерживаемый формат файла. Загрузите .glb, .gltf, .obj или .fbx.");
+    alert("Неподдерживаемый формат файла.");
   }
-});
+}
 
 
 // ======== BACKGROUND CHANGER =========
